@@ -38,7 +38,8 @@ let walker output mode dirs exts block_size silent =
   let t =
     List.fold_left
       (fun t -> Crunch.walk_directory_tree t exts Crunch.scan_file)
-      (Crunch.make ~block_size ()) dirs
+      (Crunch.make ~block_size ())
+      dirs
   in
   Crunch.output_generated_by oc binary;
   Crunch.output_implementation t oc;

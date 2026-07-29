@@ -23,11 +23,7 @@ type file_info = {
   size : int;
 }
 
-type t = {
-  block_size : int;
-  chunks : string SM.t;
-  files : file_info SM.t;
-}
+type t = { block_size : int; chunks : string SM.t; files : file_info SM.t }
 
 let make ?(block_size = 4096) () =
   { block_size; chunks = SM.empty; files = SM.empty }
