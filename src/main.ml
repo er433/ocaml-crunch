@@ -15,7 +15,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let binary = Sys.argv.(0) |> Filename.basename |> Filename.remove_extension
+(* let binary = Sys.argv.(0) |> Filename.basename |> Filename.remove_extension *)
+(* NOTE(dinosaure): for the sake of compatibility, we must keep the
+   ["ocaml-crunch"] name even for tests where the binary is named by [dune] as
+   ["main"]. *)
+let binary = "ocaml-crunch"
 
 let walker output mode dirs exts silent =
   let log fmt =
