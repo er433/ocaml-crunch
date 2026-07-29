@@ -23,9 +23,10 @@ type file_info = {
   size : int;
 }
 
-type t = string SM.t * file_info SM.t
+type t = { block_size : int; chunks : string SM.t; files : file_info SM.t }
 
-let make () = (SM.empty, SM.empty)
+let make ?(block_size = 4096) () =
+  { block_size; chunks = SM.empty; files = SM.empty }
 
 module Filename = struct
   include Filename
@@ -103,7 +104,7 @@ let output_generated_by oc binary =
     date
 
 (** Generate a set of MD5 hashed blocks, abort on collision *)
-let scan_file (chunk_info, file_info) root name =
+let scan_file t root name =
   let full_name = Filename.concat root name in
   let stats = Unix.stat full_name in
   let size = stats.Unix.st_size in
@@ -113,30 +114,31 @@ let scan_file (chunk_info, file_info) root name =
   let s = Buffer.contents buf in
   close_in fin;
   let rev_chunks = ref [] in
-  let calc_chunk chunk_info b =
+  let calc_chunk chunks b =
     let digest = Digest.to_hex (Digest.string b) in
     rev_chunks := digest :: !rev_chunks;
-    match SM.find_opt digest chunk_info with
-    | None -> SM.add digest b chunk_info
+    match SM.find_opt digest chunks with
+    | None -> SM.add digest b chunks
     | Some cur ->
         if not (String.equal cur b) then
           failwith ("MD5 hash collision in file " ^ name)
-        else chunk_info
+        else chunks
   in
-  (* Split the file as a series of chunks, of size up to 4096 (to simulate reading sectors) *)
-  let sec = 4096 in
-  (* sector size *)
-  let rec consume idx chunk_info =
-    if idx = size then chunk_info (* EOF *)
+  (* Split the file as a series of chunks, of size up to [block_size] (to
+     simulate reading sectors). A non-positive [block_size] keeps each file as a
+     single chunk, so that [read] can return the string literal itself. *)
+  let sec = if t.block_size > 0 then t.block_size else max size 1 in
+  let rec consume idx chunks =
+    if idx = size then chunks (* EOF *)
     else if idx + sec < size then
-      let chunk_info' = calc_chunk chunk_info (String.sub s idx sec) in
-      consume (idx + sec) chunk_info'
+      let chunks = calc_chunk chunks (String.sub s idx sec) in
+      consume (idx + sec) chunks
     else
       (* final chunk, short *)
-      calc_chunk chunk_info (String.sub s idx (size - idx))
+      calc_chunk chunks (String.sub s idx (size - idx))
   in
   (* consume fills !rev_chunks as a side effect, so sequentialise this*)
-  let ci = consume 0 chunk_info in
+  let chunks = consume 0 t.chunks in
   let entry =
     {
       chunk_digests = List.rev !rev_chunks;
@@ -144,26 +146,26 @@ let scan_file (chunk_info, file_info) root name =
       size = String.length s;
     }
   in
-  (ci, SM.add name entry file_info)
+  { t with chunks; files = SM.add name entry t.files }
 
-let output_implementation (chunk_info, file_info) oc =
+let output_implementation { chunks; files; _ } oc =
   let pf fmt = Printf.fprintf oc fmt in
   pf "module Internal = struct\n";
-  SM.iter (fun name chunk -> pf "  let d_%s = %S\n\n" name chunk) chunk_info;
+  SM.iter (fun name chunk -> pf "  let d_%s = %S\n\n" name chunk) chunks;
   pf "  let file_chunks = function\n";
   SM.iter
     (fun name { chunk_digests; _ } ->
       pf "    | %S | \"/%s\" -> Some [" name (String.escaped name);
       List.iter (pf " d_%s;") chunk_digests;
       pf " ]\n")
-    file_info;
+    files;
   pf "    | _ -> None\n\n";
   pf "  let file_list = [ ";
-  SM.iter (fun name _ -> pf "%S; " name) file_info;
+  SM.iter (fun name _ -> pf "%S; " name) files;
   pf "]\n";
   pf "end\n"
 
-let output_plain_skeleton_ml (_, file_info) oc =
+let output_plain_skeleton_ml { files = file_info; _ } oc =
   let pf fmt = Printf.fprintf oc fmt in
   pf
     {|
@@ -172,6 +174,7 @@ let file_list = Internal.file_list
 let read name =
   match Internal.file_chunks name with
   | None -> None
+  | Some [ c ] -> Some c
   | Some c -> Some (String.concat "" c)
 
 let hash = function

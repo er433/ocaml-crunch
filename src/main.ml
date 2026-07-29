@@ -21,7 +21,7 @@
    ["main"]. *)
 let binary = "ocaml-crunch"
 
-let walker output mode dirs exts silent =
+let walker output mode dirs exts block_size silent =
   let log fmt =
     if silent then Printf.ifprintf stdout fmt
     else Printf.fprintf stdout (fmt ^^ "%!")
@@ -38,7 +38,8 @@ let walker output mode dirs exts silent =
   let t =
     List.fold_left
       (fun t -> Crunch.walk_directory_tree t exts Crunch.scan_file)
-      (Crunch.make ()) dirs
+      (Crunch.make ~block_size ())
+      dirs
   in
   Crunch.output_generated_by oc binary;
   Crunch.output_implementation t oc;
@@ -94,8 +95,22 @@ let () =
              crunched output. If not specified, then all files will be \
              crunched into the output module.")
   in
+  let block_size =
+    Arg.(
+      value & opt int 4096
+      & info [ "b"; "block-size" ] ~docv:"BLOCK SIZE"
+          ~doc:
+            "Size of the chunks files are split into. Identical chunks are \
+             emitted only once. Use $(b,0) to emit each file as a single \
+             string literal instead: the generated module is bigger, but \
+             $(b,read) returns the literal without copying it and the data \
+             stays demand-paged from the executable rather than being faulted \
+             in wholesale by the GC.")
+  in
   let quiet = Arg.(value & flag & info [ "s"; "silent" ] ~doc:"Silent mode.") in
-  let cmd_t = Term.(const walker $ output $ mode $ dirs $ exts $ quiet) in
+  let cmd_t =
+    Term.(const walker $ output $ mode $ dirs $ exts $ block_size $ quiet)
+  in
   let info =
     let doc =
       "Convert a directory structure into a standalone OCaml module that can \

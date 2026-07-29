@@ -20,8 +20,12 @@
 type t
 (** The type of a crunch. *)
 
-val make : unit -> t
-(** [make ()] is an empty crunch. *)
+val make : ?block_size:int -> unit -> t
+(** [make ()] is an empty crunch. Files are split into chunks of [block_size]
+    bytes (4096 by default). A non-positive [block_size] emits each file as a
+    single string literal: chunks are no longer deduplicated, but [read] returns
+    the literal without copying it, and the data stays demand-paged from the
+    executable instead of being pulled into memory by the GC's root scan. *)
 
 val output_generated_by : out_channel -> string -> unit
 (** [output_generated_by oc binary_name] generate a comments saying

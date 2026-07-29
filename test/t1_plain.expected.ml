@@ -36,6 +36,7 @@ let file_list = Internal.file_list
 let read name =
   match Internal.file_chunks name with
   | None -> None
+  | Some [ c ] -> Some c
   | Some c -> Some (String.concat "" c)
 
 let hash = function
