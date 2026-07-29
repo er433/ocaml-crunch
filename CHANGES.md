@@ -1,3 +1,9 @@
+## v4.1.0 (2026-07-29)
+
+- Be able to split a document according to a block-size parameter and generate a full string
+  (instead of a list of pieces) if `block_size=0` (@toots, @dinosaure, #70)
+- Fix our tests with `dune.3.34` (@shonfeder, @dinosaure, #69, #71)
+
 ## v4.0.0 (2025-02-17)
 
 * Update to mirage-kv-mem 4.0.0 API changes (fewer functors) (#68 @hannesm)
